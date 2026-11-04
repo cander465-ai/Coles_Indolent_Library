@@ -1,29 +1,28 @@
 
 'use strict'
-
+const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
 
-function hashPassword(password, saltRounds = 10) {
+function hashPassword(password, saltRounds = 12) {
     return bcrypt.hash(password,saltRounds)
 }
 function comparePassword(hashed,password){
-    return bcrypt.compare(password,hashed)
+    return bcrypt.compare(hashed,password)
 }
-function needsRehash(existingHash = bcrypt.getRounds(hashPassword()),desiredRounds = 12){
-    const existingRounds = bcrypt.getRounds(existingHash)
-    return existingRounds
+function needsRehash(existingHash, desiredRounds = 12) {
+    return bcrypt.getRounds(existingHash) < desiredRounds
 }
-async function signToken(){
-    
+function signToken(payload,secret,options = {}){
+   return jwt.sign(payload,secret,options)
 }
-async function verifyToken() {
-    
+function verifyToken(token,secret,options={}) {
+    return jwt.verify(token,secret,options)
 }
-function getStorage(){
-
+function getStorage(storage,key){
+    const storageVal = storage.getItem(key)
+    return storageVal == null ? null : JSON.parse(storageVal)
 }
-function setStorage(){
-
+function setStorage(storage, key, value) {
+    return storage.setItem(key, JSON.stringify(value))
 }
-
 module.exports = {setStorage,getStorage,signToken,verifyToken,needsRehash,comparePassword,hashPassword}
