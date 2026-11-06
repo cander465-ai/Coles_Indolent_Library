@@ -6,8 +6,8 @@ const bcrypt = require('bcryptjs')
 function hashPassword(password, saltRounds = 12) {
     return bcrypt.hash(password,saltRounds)
 }
-function comparePassword(hashed,password){
-    return bcrypt.compare(hashed,password)
+function comparePassword(password,hashed){
+    return bcrypt.compare(password,hashed)
 }
 function needsRehash(existingHash, desiredRounds = 12) {
     return bcrypt.getRounds(existingHash) < desiredRounds
@@ -20,7 +20,7 @@ function verifyToken(token,secret,options={}) {
 }
 function getStorage(storage,key){
     const storageVal = storage.getItem(key)
-    return storageVal == null ? null : JSON.parse(storageVal)
+    return storageVal === null ? null : JSON.parse(storageVal)
 }
 function setStorage(storage, key, value) {
     return storage.setItem(key, JSON.stringify(value))
