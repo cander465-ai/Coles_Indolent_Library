@@ -42,10 +42,15 @@ function validate(schema,input){
 
         if(value === undefined || value === null){
             if(rule.required){
-                problems.push({field, message: `${field} must be a ${rule.type}`})
+                problems.push({field, message: `${field} is required`})
                 continue
             }
         }
+        if (typeof value !== rule.type || Number.isNaN(value)) {
+            problems.push({ field, message: `${field} must be a ${rule.type}` })
+            continue
+        }
+
         const size = rule.type === 'string'? value.length : value 
         if(rule.min !== undefined && size < rule.min){
             problems.push({field,message: `${field} must be at least ${rule.min}`})
