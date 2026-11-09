@@ -16,12 +16,12 @@ class ValidationError extends AppError{
 }
 class AuthError extends AppError{
     constructor(message='Unauthorized',code = 'AUTH_ERROR'){
-        super(message,code,404)
+        super(message,code,401)
     }
 }
 class NotFoundError extends AppError{
     constructor(message = 'Not found',code = 'NOT_FOUND'){
-        super(message,code)
+        super(message,code,404)
     }
 }
 class ConflictError extends AppError{
