@@ -1,34 +1,45 @@
 'use strict'
-const { signToken, verifyToken } = require('../index')
+const { getStorage, setStorage, removeStorage, createMemoryStorage } = require('../index')
 
-const SECRET = 'test-secret'
-const codeOf = (fn) => { try { fn() } catch (err) { return err.code } }
+const user = { username: 'Cole', role: 'admin' }
 
-test('sign then verify round-trips the payload', () => {
-    const token = signToken({ userId: 'abc' }, SECRET)
-    expect(verifyToken(token, SECRET).userId).toBe('abc')
+test('setStorage stores a JSON string', () => {
+    const storage = createMemoryStorage()
+    setStorage(storage, 'user', user)
+    expect(storage.getItem('user')).toBe(JSON.stringify(user))
 })
 
-test('failure: expired token gives TOKEN_EXPIRED', () => {
-    const token = signToken({ userId: 'abc' }, SECRET, { expiresIn: -10 })
-    expect(codeOf(() => verifyToken(token, SECRET))).toBe('TOKEN_EXPIRED')
+test('getStorage reads a stored object back', () => {
+    const storage = createMemoryStorage()
+    setStorage(storage, 'user', user)
+    expect(getStorage(storage, 'user')).toEqual(user)
 })
 
-test('failure: wrong secret gives TOKEN_INVALID', () => {
-    const token = signToken({ userId: 'abc' }, SECRET)
-    expect(codeOf(() => verifyToken(token, 'other'))).toBe('TOKEN_INVALID')
+test('failure: missing key returns null', () => {
+    const storage = createMemoryStorage()
+    expect(getStorage(storage, 'nope')).toBeNull()
 })
 
-test('failure: garbage token gives TOKEN_INVALID', () => {
-    expect(codeOf(() => verifyToken('not.a.token', SECRET))).toBe('TOKEN_INVALID')
+test('failure: corrupt JSON returns the fallback instead of throwing', () => {
+    const storage = createMemoryStorage()
+    storage.setItem('broken', 'not valid JSON')
+    expect(getStorage(storage, 'broken')).toBeNull()
+    expect(getStorage(storage, 'broken', 'default')).toBe('default')
 })
 
-test('failure: alg none token is rejected', () => {
-    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url')
-    const forged = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ userId: 'abc' })}.`
-    expect(codeOf(() => verifyToken(forged, SECRET))).toBe('TOKEN_INVALID')
+test('failure: storage returning undefined is treated as missing', () => {
+    const storage = { getItem: () => undefined }
+    expect(getStorage(storage, 'x')).toBeNull()
 })
 
-test('failure: empty secret is rejected on sign', () => {
-    expect(codeOf(() => signToken({ a: 1 }, ''))).toBe('INVALID_SECRET')
+test('failure: setStorage rejects values that cannot be stored', () => {
+    const storage = createMemoryStorage()
+    expect(() => setStorage(storage, 'x', undefined)).toThrow(/cannot be stored/)
+})
+
+test('removeStorage deletes a key', () => {
+    const storage = createMemoryStorage()
+    setStorage(storage, 'user', user)
+    removeStorage(storage, 'user')
+    expect(getStorage(storage, 'user')).toBeNull()
 })

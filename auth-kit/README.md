@@ -4,9 +4,42 @@
 auth-kit hashes passwords, signs and checks login tokens (JWT), and saves data to any storage object like localStorage. It does not read environment variables or import anything from your app. You pass in the secrets and the storage yourself.
 
 ## Install
-Copy this folder into your project, then run:
+Copy this folder into your project. It needs the guard-kit folder next to it (../guard-kit). Then run:
 
 npm install bcryptjs jsonwebtoken
+
+## Usage
+Save this as example.js inside the auth-kit folder and run: node example.js
+
+```javascript
+const {
+  hashPassword, comparePassword, needsRehash,
+  signToken, verifyToken,
+  setStorage, getStorage, createMemoryStorage,
+} = require('./index')
+
+async function main() {
+  const hash = await hashPassword('MyPassword123', 10)
+  console.log(await comparePassword('MyPassword123', hash)) // true
+  console.log(await comparePassword('wrong', hash))         // false
+  console.log(needsRehash(hash, 12))                        // true
+
+  const token = signToken({ userId: 'abc' }, 'my-secret')
+  console.log(verifyToken(token, 'my-secret').userId)       // abc
+
+  try {
+    verifyToken(token, 'wrong-secret')
+  } catch (err) {
+    console.log(err.code)                                   // TOKEN_INVALID
+  }
+
+  const storage = createMemoryStorage()
+  setStorage(storage, 'user', { name: 'Cole' })
+  console.log(getStorage(storage, 'user'))                  // { name: 'Cole' }
+}
+
+main()
+```
 
 ## API
 Passwords:
@@ -25,7 +58,7 @@ Storage (a storage object is anything with getItem, setItem, and removeItem):
 - createMemoryStorage() returns a simple storage object that lives in memory. Good for tests.
 
 Errors:
-- AuthKitError is the error this module throws. It has a code property.
+- All errors come from guard-kit. Password and secret problems are ValidationError. Token problems are AuthError. Every error has a code.
 
 ## Decisions
 - The secret is passed in on every call. This keeps the module from reading environment variables. The downside is a little more typing.
@@ -33,9 +66,10 @@ Errors:
 - comparePassword returns false instead of crashing. A user with no password, like an OAuth user, should just fail to log in.
 - needsRehash returns true for a hash it can't read, because a broken hash should be replaced.
 - Tokens always use the HS256 algorithm. This blocks fake tokens that say they need no signature.
-- The module throws its own errors, so callers never need to import bcryptjs or jsonwebtoken to handle them.
+- The module throws guard-kit errors, so callers never need to import bcryptjs or jsonwebtoken to handle them.
 - Storage is passed in, so the module never touches window or localStorage directly. It works in Node and in tests.
+- auth-kit depends on guard-kit on purpose. The error classes are shared by the whole toolkit, so they live in one place instead of being copied.
 
 ## Changes
 - v1.0: First version.
-- Module 4 (planned): AuthKitError will be replaced by the error classes from guard-kit, so the whole toolkit shares one error format. This is a dependency on another module, chosen on purpose.
+- v1.1 (Module 4): AuthKitError removed. Now throws guard-kit ValidationError and AuthError. The error codes did not change.

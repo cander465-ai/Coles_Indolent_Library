@@ -14,6 +14,11 @@ test('failure: hashPassword rejects a password over 72 bytes', async () => {
     await expect(hashPassword(tooLong, 4)).rejects.toMatchObject({ code: 'PASSWORD_TOO_LONG' })
 })
 
+test('failure: hashPassword counts bytes, not characters', async () => {
+    const emoji = '😀'.repeat(25) // 25 characters but 100 bytes
+    await expect(hashPassword(emoji, 4)).rejects.toMatchObject({ code: 'PASSWORD_TOO_LONG' })
+})
+
 test('failure: hashPassword rejects an empty password', async () => {
     await expect(hashPassword('', 4)).rejects.toMatchObject({ code: 'INVALID_PASSWORD' })
 })
