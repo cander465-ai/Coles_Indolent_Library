@@ -1,17 +1,18 @@
 'use strict'
-
-const {validate, ValidationError} = require('../index')
+const { validate, ValidationError } = require('../index')
 
 const schema = {
-    name:{type:'string',required:true,min:2},
-    age: {type :'number',min:0,max:120},
+    name: { type: 'string', required: true, min: 2 },
+    age: { type: 'number', min: 0, max: 120 },
 }
-test('validate returns the input when it is valid',() => {
-    const input = {name:'Cole',age:25}
-    expect(validate(schema,input)).toBe(input)
+
+test('validate returns the input when it is valid', () => {
+    const input = { name: 'Cole', age: 25 }
+    expect(validate(schema, input)).toBe(input)
 })
-test('optional fields can be left out', () =>{
-    expect(() => validate(schema, {name: 'Cole'})).not.toThrow()
+
+test('optional fields can be left out', () => {
+    expect(() => validate(schema, { name: 'Cole' })).not.toThrow()
 })
 
 test('failure: missing required field throws ValidationError', () => {
