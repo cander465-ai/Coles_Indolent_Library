@@ -1,108 +1,85 @@
 'use strict'
-const jwt = require('jsonwebtoken')
-const bcrypt = require('bcryptjs')
-const { ValidationError, AuthError } = require('../guard-kit')
 
-// bcrypt only reads the first 72 BYTES of a password (not characters)
-const MAX_PASSWORD_BYTES = 72
-
-// Throws if the password is not usable
-function checkPassword(password) {
-    if (typeof password !== 'string' || password.length === 0) {
-        throw new ValidationError('password must be a non-empty string', [], 'INVALID_PASSWORD')
-    }
-    if (Buffer.byteLength(password) > MAX_PASSWORD_BYTES) {
-        throw new ValidationError('password is longer than 72 bytes', [], 'PASSWORD_TOO_LONG')
+// Base class. Every error in the toolkit extends this.
+class AppError extends Error {
+    constructor(message, code = 'APP_ERROR', status = 500) {
+        super(message)
+        this.name = this.constructor.name
+        this.code = code
+        this.status = status
     }
 }
 
-async function hashPassword(password, saltRounds = 12) {
-    checkPassword(password)
-    if (!Number.isInteger(saltRounds) || saltRounds < 4 || saltRounds > 31) {
-        throw new ValidationError('saltRounds must be a whole number from 4 to 31', [], 'INVALID_ROUNDS')
-    }
-    return bcrypt.hash(password, saltRounds)
-}
-
-async function comparePassword(password, hashed) {
-    // Bad input means "no match", never a crash
-    if (typeof password !== 'string' || typeof hashed !== 'string') return false
-    if (Buffer.byteLength(password) > MAX_PASSWORD_BYTES) return false
-    try {
-        return await bcrypt.compare(password, hashed)
-    } catch (err) {
-        return false // malformed hash
+class ValidationError extends AppError {
+    constructor(message = 'Validation failed', details = [], code = 'VALIDATION_ERROR') {
+        super(message, code, 400)
+        this.details = details // [{ field, message }]
     }
 }
 
-function needsRehash(existingHash, desiredRounds = 12) {
-    try {
-        return bcrypt.getRounds(existingHash) < desiredRounds
-    } catch (err) {
-        return true // unreadable hash, so replace it
+class AuthError extends AppError {
+    constructor(message = 'Not authorized', code = 'AUTH_ERROR') {
+        super(message, code, 401)
     }
 }
 
-function signToken(payload, secret, options = {}) {
-    if (typeof secret !== 'string' || secret.length === 0) {
-        throw new ValidationError('secret must be a non-empty string', [], 'INVALID_SECRET')
+class NotFoundError extends AppError {
+    constructor(message = 'Not found', code = 'NOT_FOUND') {
+        super(message, code, 404)
     }
-    const expiresIn = options.expiresIn || '1h'
-    return jwt.sign(payload, secret, { algorithm: 'HS256', expiresIn: expiresIn })
 }
 
-function verifyToken(token, secret) {
-    try {
-        return jwt.verify(token, secret, { algorithms: ['HS256'] })
-    } catch (err) {
-        if (err.name === 'TokenExpiredError') {
-            throw new AuthError('token expired', 'TOKEN_EXPIRED')
+class ConflictError extends AppError {
+    constructor(message = 'Conflict', code = 'CONFLICT') {
+        super(message, code, 409)
+    }
+}
+
+// schema example: { name: { type: 'string', required: true, min: 2 } }
+// Returns the input if it is valid, throws ValidationError if not.
+function validate(schema, input) {
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+        throw new ValidationError('input must be an object')
+    }
+
+    const problems = []
+
+    for (const field of Object.keys(schema)) {
+        const rule = schema[field]
+        const value = input[field]
+
+        if (value === undefined || value === null) {
+            if (rule.required) {
+                problems.push({ field, message: `${field} is required` })
+            }
+            continue
         }
-        throw new AuthError('token invalid', 'TOKEN_INVALID')
-    }
-}
 
-function getStorage(storage, key, fallback = null) {
-    const storageVal = storage.getItem(key)
-    // == null catches both null and undefined
-    if (storageVal == null) return fallback
-    try {
-        return JSON.parse(storageVal)
-    } catch (err) {
-        return fallback // corrupt value
-    }
-}
+        if (typeof value !== rule.type || Number.isNaN(value)) {
+            problems.push({ field, message: `${field} must be a ${rule.type}` })
+            continue
+        }
 
-function setStorage(storage, key, value) {
-    const text = JSON.stringify(value)
-    if (text === undefined) {
-        throw new ValidationError('value cannot be stored', [], 'INVALID_VALUE')
+        const size = rule.type === 'string' ? value.length : value
+        if (rule.min !== undefined && size < rule.min) {
+            problems.push({ field, message: `${field} must be at least ${rule.min}` })
+        }
+        if (rule.max !== undefined && size > rule.max) {
+            problems.push({ field, message: `${field} must be at most ${rule.max}` })
+        }
     }
-    return storage.setItem(key, text)
-}
 
-function removeStorage(storage, key) {
-    return storage.removeItem(key)
-}
-
-// In-memory storage so you can use/test this without a browser
-function createMemoryStorage() {
-    const data = new Map()
-    return {
-        getItem: (key) => (data.has(key) ? data.get(key) : null),
-        setItem: (key, value) => { data.set(key, String(value)) },
-        removeItem: (key) => { data.delete(key) },
+    if (problems.length > 0) {
+        throw new ValidationError('Validation failed', problems)
     }
+    return input
 }
 
 module.exports = {
-    hashPassword,
-    comparePassword,
-    needsRehash,
-    signToken,
-    verifyToken,
-    getStorage,
-    setStorage,
-    removeStorage,
-    createMemoryStorage,
+    AppError,
+    ValidationError,
+    AuthError,
+    NotFoundError,
+    ConflictError,
+    validate,
 }
